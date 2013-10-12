@@ -7,6 +7,9 @@
 #include "ScreenCapDlg.h"
 #include "afxdialogex.h"
 
+#define WM_SHOWTASK (WM_USER + 1)
+#define TIMER_INIT_MIN 1
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -55,9 +58,9 @@ int GetEncoderClsid(const WCHAR* format, CLSID* pClsid)
 void SaveScreenToJpg()
 {
 	// 得到屏幕DC
-	HWND hDeskWnd = ::GetDesktopWindow();       //获得屏幕的HWND. 
-	CDC *pDestDC = CDC::FromHandle(::GetDC(hDeskWnd));    //获取当前整个屏幕DC
-	int screenWidth = pDestDC->GetDeviceCaps(HORZRES);     //屏幕宽
+	HWND hDeskWnd = ::GetDesktopWindow();					//获得屏幕的HWND. 
+	CDC *pDestDC = CDC::FromHandle(::GetDC(hDeskWnd));		//获取当前整个屏幕DC
+	int screenWidth = pDestDC->GetDeviceCaps(HORZRES);		//屏幕宽
 	int screenHeight = pDestDC->GetDeviceCaps(VERTRES);     //屏幕高
 	// 创建与屏幕兼容的Bitmap 
 	CBitmap memBitmap;   
@@ -132,8 +135,6 @@ END_MESSAGE_MAP()
 // CScreenCapDlg 对话框
 
 
-
-
 CScreenCapDlg::CScreenCapDlg(CWnd* pParent /*=NULL*/)
 	: CDialogEx(CScreenCapDlg::IDD, pParent)
 {
@@ -151,6 +152,12 @@ BEGIN_MESSAGE_MAP(CScreenCapDlg, CDialogEx)
 	ON_WM_QUERYDRAGICON()
 	ON_COMMAND(ID_MENU_NEW_CAP, &CScreenCapDlg::OnMenuNewCap)
 	ON_COMMAND(ID_MENU_SAVE_CAP, &CScreenCapDlg::OnMenuSaveCap)
+	ON_WM_SIZE()
+	ON_MESSAGE(WM_SHOWTASK,OnShowTask)
+	ON_WM_CLOSE()
+	ON_MESSAGE(WM_HOTKEY,OnHotKey)
+	ON_WM_TIMER()
+	ON_WM_ERASEBKGND()
 END_MESSAGE_MAP()
 
 
@@ -160,8 +167,19 @@ BOOL CScreenCapDlg::OnInitDialog()
 {
 	CDialogEx::OnInitDialog();
 
-	// 将“关于...”菜单项添加到系统菜单中。
+	//初始时最小化
+	//SendMessage(WM_SYSCOMMAND,SC_MINIMIZE,NULL);
+	//ShowWindow(SW_MINIMIZE);
+	SetTimer(TIMER_INIT_MIN,10,NULL);
 
+	//设置全局热键
+	if(!::RegisterHotKey(GetSafeHwnd(),WM_HOTKEY,MOD_ALT|MOD_CONTROL,VK_F12))
+	{
+		AfxMessageBox(L"热键设置失败");
+	}
+	
+	
+	// 将“关于...”菜单项添加到系统菜单中。
 	// IDM_ABOUTBOX 必须在系统命令范围内。
 	ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
 	ASSERT(IDM_ABOUTBOX < 0xF000);
@@ -186,6 +204,8 @@ BOOL CScreenCapDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 设置小图标
 
 	// TODO: 在此添加额外的初始化代码
+
+	
 
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -215,7 +235,7 @@ void CScreenCapDlg::OnPaint()
 
 		SendMessage(WM_ICONERASEBKGND, reinterpret_cast<WPARAM>(dc.GetSafeHdc()), 0);
 
-		// 使图标在工作区矩形中居中
+		//使图标在工作区矩形中居中
 		int cxIcon = GetSystemMetrics(SM_CXICON);
 		int cyIcon = GetSystemMetrics(SM_CYICON);
 		CRect rect;
@@ -246,9 +266,142 @@ void CScreenCapDlg::OnMenuNewCap()
 	// TODO: Add your command handler code here
 }
 
-
 //菜单：
 void CScreenCapDlg::OnMenuSaveCap()
 {
 	SaveScreenToJpg();
+}
+
+//用来截获最小化消息
+void CScreenCapDlg::OnSize(UINT nType, int cx, int cy)
+{
+	//最小化消息
+	if(nType == SIZE_MINIMIZED)
+	{
+		HideToTask();
+	}
+	CDialogEx::OnSize(nType, cx, cy);
+}
+
+
+//托盘消息的处理函数
+LRESULT CScreenCapDlg::OnShowTask(WPARAM wParam,LPARAM lParam) 
+	//wParam接收的是图标的ID，而lParam接收的是鼠标的行为
+{ 
+	if(wParam!=IDR_MAINFRAME) 
+		return 1; 
+	switch(lParam) 
+	{    
+	case WM_RBUTTONUP://右键起来时弹出快捷菜单 
+		{ 
+			LPPOINT lpoint=new tagPOINT; 
+			::GetCursorPos(lpoint);//得到鼠标位置 
+			CMenu menu; 
+			menu.CreatePopupMenu();//声明一个弹出式菜单 
+			//增加菜单项“关闭”，点击则发送消息WM_DESTROY给主窗口（已 
+			//隐藏），将程序结束。 
+			menu.AppendMenu(MF_STRING,WM_DESTROY,L"关闭"); 
+			menu.AppendMenu(MF_STRING,WM_SHOWWINDOW,L"打开");
+			//确定弹出式菜单的位置 
+			menu.TrackPopupMenu(TPM_LEFTALIGN,lpoint->x,lpoint->y,this); 
+			//资源回收 
+			HMENU hmenu=menu.Detach(); 
+			menu.DestroyMenu();			
+			delete lpoint; 
+		} 
+		break; 
+	case WM_LBUTTONUP:	//单机左键的处理 
+		{ 		
+			ShowWindow(SW_SHOWNORMAL);//显示主窗口
+			SetForegroundWindow();	  //并将主窗体置于顶层	
+		} 
+		break; 
+	} 
+	return 0; 
+} 
+
+
+//关闭窗口时，删除托盘区图标和热键
+void CScreenCapDlg::OnClose()
+{
+	//将图标从托盘区删除
+	NOTIFYICONDATA nd;
+	nd.cbSize   = sizeof (NOTIFYICONDATA);
+	nd.hWnd		= m_hWnd;
+	nd.uID		= IDR_MAINFRAME;
+	Shell_NotifyIcon(NIM_DELETE,&nd);
+
+	//删除热键
+	::UnregisterHotKey(GetSafeHwnd(),WM_HOTKEY);
+
+	CDialogEx::OnClose();
+}
+
+
+//最小到托盘区
+void CScreenCapDlg::HideToTask(void)
+{
+	//最小到托盘区
+	NOTIFYICONDATA nid; 
+	nid.cbSize=(DWORD)sizeof(NOTIFYICONDATA); 
+	nid.hWnd=this->m_hWnd; 
+	nid.uID=IDR_MAINFRAME; 
+	nid.uFlags=NIF_ICON|NIF_MESSAGE|NIF_TIP ; 
+	nid.uCallbackMessage=WM_SHOWTASK;	//自定义的消息名称 
+	nid.hIcon=LoadIcon(AfxGetInstanceHandle(),MAKEINTRESOURCE(IDR_MAINFRAME)); 
+	wcscpy(nid.szTip,L"ScreenCap 1.0");		//信息提示条
+	Shell_NotifyIcon(NIM_ADD,&nid);			//在托盘区添加图标 
+	// 
+	ShowWindow(SW_HIDE);					//隐藏主窗口
+}
+
+//热键消息处理函数
+LRESULT CScreenCapDlg::OnHotKey(WPARAM wp, LPARAM lp)
+{
+	switch(wp)
+	{
+	case WM_HOTKEY:
+		AfxMessageBox(L"HotKey Pressed");
+	default:
+		break;
+	}
+	return TRUE;
+}
+
+
+//计时器：程序启动时，将对话框最小化
+void CScreenCapDlg::OnTimer(UINT_PTR nIDEvent)
+{
+	// TODO: Add your message handler code here and/or call default
+	switch(nIDEvent)
+	{
+	case TIMER_INIT_MIN:
+		//ShowWindow(SW_MINIMIZE);
+		KillTimer(TIMER_INIT_MIN);
+		//AfxMessageBox(L"开始截屏");
+	default:
+		break;
+	}
+	CDialogEx::OnTimer(nIDEvent);
+}
+
+
+BOOL CScreenCapDlg::OnEraseBkgnd(CDC* pDC)
+{
+	// TODO: Add your message handler code here and/or call default
+
+	//用整个桌面填充全屏对话框背景
+	BITMAP bmp;
+	CBitmap*  m_pBitmap;
+	m_pBitmap->GetBitmap(&bmp);
+
+	CDC dcCompatible;
+	dcCompatible.CreateCompatibleDC(pDC);
+
+	dcCompatible.SelectObject(m_pBitmap);
+
+	CRect rect;
+	GetClientRect(&rect);
+	pDC->BitBlt(0,0,rect.Width(),rect.Height(),&dcCompatible,0,0,SRCCOPY);
+	return CDialogEx::OnEraseBkgnd(pDC);
 }

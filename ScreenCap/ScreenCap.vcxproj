@@ -96,6 +96,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="ReadMe.txt" />
+    <None Include="res\MainIcon.ico" />
     <None Include="res\ScreenCap.ico" />
     <None Include="res\ScreenCap.rc2" />
   </ItemGroup>

@@ -32,4 +32,11 @@ protected:
 public:
 	afx_msg void OnMenuNewCap();
 	afx_msg void OnMenuSaveCap();
+	afx_msg void OnSize(UINT nType, int cx, int cy);
+	afx_msg LRESULT OnShowTask(WPARAM wParam,LPARAM lParam); 
+	afx_msg LRESULT OnHotKey(WPARAM wp, LPARAM lp);  //热键消息映射函数
+	afx_msg void OnClose();
+	void HideToTask(void);
+	afx_msg void OnTimer(UINT_PTR nIDEvent);
+	afx_msg BOOL OnEraseBkgnd(CDC* pDC);
 };

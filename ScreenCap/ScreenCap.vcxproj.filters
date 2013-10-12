@@ -22,6 +22,9 @@
     <None Include="res\ScreenCap.ico">
       <Filter>Resource Files</Filter>
     </None>
+    <None Include="res\MainIcon.ico">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ScreenCap.h">
